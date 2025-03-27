@@ -1,0 +1,41 @@
+CHIP P2S {
+    IN indata[4], enable, load;
+    OUT sout, complete;
+
+    PARTS:
+    REGISTER[4] storedData;
+    REGISTER[3] counter;
+    BIT notComplete;
+
+    MUX4WAY selBit;
+    MUX2WAY muxEnable, muxComplete;
+
+    storedData.IN = indata;
+    storedData.LOAD = load;
+
+    counter.IN[0] = notComplete;
+    counter.IN[1] = notComplete;
+    counter.IN[2] = notComplete;
+    counter.LOAD = enable;
+
+    notComplete = Nand(counter.OUT[0], counter.OUT[1]);
+    notComplete = Nand(notComplete, counter.OUT[2]);
+    notComplete = Not(notComplete);
+
+    selBit.A = storedData.OUT[0];
+    selBit.B = storedData.OUT[1];
+    selBit.C = storedData.OUT[2];
+    selBit.D = storedData.OUT[3];
+    selBit.SEL[0] = counter.OUT[0];
+    selBit.SEL[1] = counter.OUT[1];
+
+    muxEnable.A = false;
+    muxEnable.B = selBit.OUT;
+    muxEnable.SEL = enable;
+    sout = muxEnable.OUT;
+
+    muxComplete.A = false;
+    muxComplete.B = notComplete;
+    muxComplete.SEL = enable;
+    complete = Not(muxComplete.OUT);
+}
