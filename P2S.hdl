@@ -3,39 +3,46 @@ CHIP P2S {
     OUT sout, complete;
 
     PARTS:
-    REGISTER[4] storedData;
-    REGISTER[3] counter;
-    BIT notComplete;
+    // Input data storage
+    Register(
+        in[0..3]=indata, in[4..15]=false, load=load,
+        out[0]=bit0, out[1]=bit1, out[2]=bit2, out[3]=bit3
+    );
 
-    MUX4WAY selBit;
-    MUX2WAY muxEnable, muxComplete;
+    // Control signals
+    Not(in=load, out=notLoad);
+    Not(in=enable, out=notEnable);
+    And(a=notLoad, b=enable, out=shiftMode);
 
-    storedData.IN = indata;
-    storedData.LOAD = load;
+    // Shift stage tracking
+    Not(in=shiftStage0, out=notStage0);
+    Not(in=shiftStage1, out=notStage1);
+    Not(in=shiftStage2, out=notStage2);
+    Not(in=shiftStage3, out=notStage3);
 
-    counter.IN[0] = notComplete;
-    counter.IN[1] = notComplete;
-    counter.IN[2] = notComplete;
-    counter.LOAD = enable;
+    // Shift initialization logic
+    And(a=notStage0, b=notStage1, out=firstHalfClear);
+    And(a=notStage2, b=notStage3, out=secondHalfClear);
+    And(a=firstHalfClear, b=secondHalfClear, out=allStagesIdle);
+    And(a=allStagesIdle, b=enable, out=beginShift);
 
-    notComplete = Nand(counter.OUT[0], counter.OUT[1]);
-    notComplete = Nand(notComplete, counter.OUT[2]);
-    notComplete = Not(notComplete);
+    // Shift stage flip-flops
+    DFF(in=beginShift, out=shiftStage0);
+    DFF(in=shiftStage0, out=shiftStage1);
+    DFF(in=shiftStage1, out=shiftStage2);
+    DFF(in=shiftStage2, out=shiftStage3);
 
-    selBit.A = storedData.OUT[0];
-    selBit.B = storedData.OUT[1];
-    selBit.C = storedData.OUT[2];
-    selBit.D = storedData.OUT[3];
-    selBit.SEL[0] = counter.OUT[0];
-    selBit.SEL[1] = counter.OUT[1];
+    // Bit selection logic
+    And(a=bit0, b=shiftStage0, out=selectBit0);
+    And(a=bit1, b=shiftStage1, out=selectBit1);
+    And(a=bit2, b=shiftStage2, out=selectBit2);
+    And(a=bit3, b=shiftStage3, out=selectBit3);
 
-    muxEnable.A = false;
-    muxEnable.B = selBit.OUT;
-    muxEnable.SEL = enable;
-    sout = muxEnable.OUT;
+    // Output combination
+    Or(a=selectBit0, b=selectBit1, out=lowerBits);
+    Or(a=selectBit2, b=selectBit3, out=upperBits);
+    Or(a=lowerBits, b=upperBits, out=sout);
 
-    muxComplete.A = false;
-    muxComplete.B = notComplete;
-    muxComplete.SEL = enable;
-    complete = Not(muxComplete.OUT);
+    // Completion signal
+    And(a=true, b=shiftStage3, out=complete);
 }
